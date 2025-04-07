@@ -48,7 +48,22 @@ int initTamponCirculaire(size_t taille){
     // Les variables de statistiques
 
     // TODO
+    
+    memoireTaille = taille;
+    memoire = (char*)calloc(memoireTaille, sizeof(struct requete));
+    if (memoire == NULL) {
+        return -1; // Échec d'allocation mémoire
+    }
+    posLecture = 0;
+    posEcriture = 0;
+    longueurCourante = 0;
+    if (pthread_mutex_init(&mutexTampon, NULL) != 0) {
+        free(memoire); // Libérer la mémoire si le mutex échoue
+        memoire = NULL;
+        return -1;
+    }
 
+    return 0;    
 }
 
 void resetStats(){
@@ -79,6 +94,24 @@ int insererDonnee(struct requete *req){
     // N'oubliez pas de proteger les operations qui le necessitent par un mutex!
    
     // TODO
+    if (req == NULL) return -1; // Erreur si le pointeur est NULL
+    pthread_mutex_lock(&mutexTampon);
+    struct requete* emplacement = ((struct requete*)memoire) + posEcriture;
+    memcpy(emplacement, req, sizeof(struct requete));
+    pthread_mutex_unlock(&mutexTampon);
+    posEcriture = (posEcriture + 1) % memoireTaille;
+
+    if (longueurCourante == memoireTaille) {
+        // Tampon plein : avancer posLecture pour ne pas perdre la plus ancienne requête
+        posLecture = (posLecture + 1) % memoireTaille;
+    } else {
+        // Sinon, on augmente juste la longueur
+        longueurCourante++;
+    }
+
+    // nombreRequetesRecues++;
+
+    return 0;
 }
 
 int consommerDonnee(struct requete *req){
@@ -97,10 +130,38 @@ int consommerDonnee(struct requete *req){
     // N'oubliez pas de proteger les operations qui le necessitent par un mutex!
     
     // TODO
+
+    if (req == NULL) return -1; // Erreur si le pointeur est NULL
+    if (longueurCourante == 0) {
+        // Aucune requête disponible
+        pthread_mutex_unlock(&mutexTampon);
+        return 0;
+    }
+
+    // Récupérer la requête la plus ancienne
+    pthread_mutex_lock(&mutexTampon);
+    struct requete* emplacement = ((struct requete*)memoire) + posLecture;
+    pthread_mutex_unlock(&mutexTampon);
+
+    // Copier la requête vers la sortie avec memcpy
+    memcpy(req, emplacement, sizeof(struct requete));
+
+    // Mettre à jour posLecture
+    posLecture = (posLecture + 1) % memoireTaille;
+
+    // Mettre à jour la longueur courante
+    longueurCourante--;
+
+    // Mettre à jour les statistiques (ex: sommeTempsAttente)
+    // sommeTempsAttente += req->tempsAttente;  // Supposant que `tempsAttente` existe
+
+
+    return 1; // Succès, une requête a été consommée
 }
 
 unsigned int longueurFile(){
     // Retourne la longueur courante de la file contenue dans votre tampon circulaire.
     
     // TODO
+    return longueurCourante;
 }
