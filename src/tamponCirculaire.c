@@ -51,6 +51,7 @@ int initTamponCirculaire(size_t taille){
     
     memoireTaille = taille;
     memoire = (char*)calloc(memoireTaille, sizeof(struct requete));
+
     if (memoire == NULL) {
         return -1; // Échec d'allocation mémoire
     }
@@ -96,10 +97,13 @@ int insererDonnee(struct requete *req){
     // TODO
     if (req == NULL) return -1; // Erreur si le pointeur est NULL
     pthread_mutex_lock(&mutexTampon);
+    printf("Consumming Data !");
     struct requete* emplacement = ((struct requete*)memoire) + posEcriture;
     memcpy(emplacement, req, sizeof(struct requete));
-    pthread_mutex_unlock(&mutexTampon);
     posEcriture = (posEcriture + 1) % memoireTaille;
+
+    printf("&posLecture: %p\n", (void*)&posLecture);
+    printf("&longueurCourante: %p\n", (void*)&longueurCourante);
 
     if (longueurCourante == memoireTaille) {
         // Tampon plein : avancer posLecture pour ne pas perdre la plus ancienne requête
@@ -108,6 +112,7 @@ int insererDonnee(struct requete *req){
         // Sinon, on augmente juste la longueur
         longueurCourante++;
     }
+    pthread_mutex_unlock(&mutexTampon);
 
     // nombreRequetesRecues++;
 
@@ -140,8 +145,8 @@ int consommerDonnee(struct requete *req){
 
     // Récupérer la requête la plus ancienne
     pthread_mutex_lock(&mutexTampon);
+    printf("Consumming Data !");
     struct requete* emplacement = ((struct requete*)memoire) + posLecture;
-    pthread_mutex_unlock(&mutexTampon);
 
     // Copier la requête vers la sortie avec memcpy
     memcpy(req, emplacement, sizeof(struct requete));
@@ -151,6 +156,7 @@ int consommerDonnee(struct requete *req){
 
     // Mettre à jour la longueur courante
     longueurCourante--;
+    pthread_mutex_unlock(&mutexTampon);
 
     // Mettre à jour les statistiques (ex: sommeTempsAttente)
     // sommeTempsAttente += req->tempsAttente;  // Supposant que `tempsAttente` existe
