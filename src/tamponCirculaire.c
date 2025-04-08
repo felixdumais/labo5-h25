@@ -63,6 +63,13 @@ int initTamponCirculaire(size_t taille){
         memoire = NULL;
         return -1;
     }
+    nombreRequetesRecues = 0;
+    nombreRequetesTraitees = 0;
+    nombreRequetesPerdues = 0;
+
+    tempsDebutPeriode = get_time();
+    sommeTempsAttente = 0;
+
 
     return 0;    
 }
@@ -71,10 +78,25 @@ void resetStats(){
     // Reinitialise les variables de statistique
 
     // TODO
+
+    nombreRequetesRecues = 0;
+    nombreRequetesTraitees = 0;
+    nombreRequetesPerdues = 0;
+
+    tempsDebutPeriode = get_time();
+    sommeTempsAttente = 0;
+
 }
 
 void calculeStats(struct statistiques *stats){
     // TODO
+    stats->nombreRequetesEnAttente = longueurFile();
+    stats->nombreRequetesPerdues = nombreRequetesPerdues;
+    stats->nombreRequetesTraitees = nombreRequetesTraitees;
+    // stats->tempsTraitementMoyen = nombreRequetesTraitees;
+    stats->lambda = nombreRequetesRecues / (get_time() - tempsDebutPeriode);
+    stats->mu = sommeTempsAttente / nombreRequetesTraitees;
+    stats->rho = stats->lambda / stats->mu;
     
 }
 
@@ -97,24 +119,21 @@ int insererDonnee(struct requete *req){
     // TODO
     if (req == NULL) return -1; // Erreur si le pointeur est NULL
     pthread_mutex_lock(&mutexTampon);
-    printf("Consumming Data !");
     struct requete* emplacement = ((struct requete*)memoire) + posEcriture;
     memcpy(emplacement, req, sizeof(struct requete));
     posEcriture = (posEcriture + 1) % memoireTaille;
 
-    printf("&posLecture: %p\n", (void*)&posLecture);
-    printf("&longueurCourante: %p\n", (void*)&longueurCourante);
-
     if (longueurCourante == memoireTaille) {
-        // Tampon plein : avancer posLecture pour ne pas perdre la plus ancienne requête
+        // Tampon plein : avancer posLecture one perd la plus ancienne requête
         posLecture = (posLecture + 1) % memoireTaille;
+        nombreRequetesPerdues++;
     } else {
         // Sinon, on augmente juste la longueur
         longueurCourante++;
     }
     pthread_mutex_unlock(&mutexTampon);
 
-    // nombreRequetesRecues++;
+    nombreRequetesRecues++;
 
     return 0;
 }
@@ -145,7 +164,6 @@ int consommerDonnee(struct requete *req){
 
     // Récupérer la requête la plus ancienne
     pthread_mutex_lock(&mutexTampon);
-    printf("Consumming Data !");
     struct requete* emplacement = ((struct requete*)memoire) + posLecture;
 
     // Copier la requête vers la sortie avec memcpy
@@ -159,7 +177,8 @@ int consommerDonnee(struct requete *req){
     pthread_mutex_unlock(&mutexTampon);
 
     // Mettre à jour les statistiques (ex: sommeTempsAttente)
-    // sommeTempsAttente += req->tempsAttente;  // Supposant que `tempsAttente` existe
+    sommeTempsAttente += get_time() - req->tempsReception;  
+    nombreRequetesTraitees++;
 
 
     return 1; // Succès, une requête a été consommée

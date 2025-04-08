@@ -123,21 +123,27 @@ static void* threadFonctionLecture(void *args){
 
                     if (lectureTotale > 0)
                     {
-                        int last_eot = 0;
+                        int last_eot = -1;  // Start at -1 to correctly handle initial EOT
                         for (int i = 0; i < (int)lectureTotale; i++)
                         {
                             unprocessed_bytes++;
-                            if (chunk_buffer[i] == 0x4) { // ASCII EOT, fin du message
-                                req.taille = i - last_eot;
-                                req.data = malloc(req.taille);
-                                if (req.data != NULL) {
-                                    memcpy(req.data, chunk_buffer, req.taille);  // Copier le message sans le EOT
-                                    req.tempsReception = time(NULL);
-                                    insererDonnee(&req); // Insérer dans le tampon circulaire
+
+                            if (chunk_buffer[i] == 0x4) { // ASCII EOT
+                                int start = last_eot + 1;
+                                int length = i - start;
+
+                                if (length > 0) {
+                                    req.taille = length;
+                                    req.data = malloc(req.taille);
+                                    if (req.data != NULL) {
+                                        memcpy(req.data, chunk_buffer + start, req.taille);
+                                        req.tempsReception = get_time();
+                                        insererDonnee(&req);
+                                    }
                                 }
-                                
+
                                 last_eot = i;
-                                unprocessed_bytes = 0;    
+                                unprocessed_bytes = 0;
                             }
                         }
 

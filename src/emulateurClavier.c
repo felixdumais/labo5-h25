@@ -26,53 +26,64 @@ int ecrireCaracteres(FILE* periphClavier, const char* caracteres, size_t len, un
         return -1; // Erreur si les arguments sont invalides
     }
 
-    unsigned char paquet[LONGUEUR_USB_PAQUET] = {0, 0, 4, 5, 6, 7, 8, 9};
+    unsigned char paquet[LONGUEUR_USB_PAQUET] = {0};
     unsigned char bufferZeros[LONGUEUR_USB_PAQUET] = {0}; // Buffer rempli de zéros
 
     size_t caracteresEcrits = 0;
     size_t i = 0;
-    bool is_maj_pressed = false;
+    bool is_maj_pressed;
 
 
     while (i < len) {
         // Remplir le paquet avec les codes clavier
-        for (size_t j = 2; j < LONGUEUR_USB_PAQUET && i < len; j++) {
+        memset(paquet, 0, LONGUEUR_USB_PAQUET);
+        is_maj_pressed = false;
+
+        // Remplir le paquet avec les codes clavier
+        for (size_t j = 2; j < LONGUEUR_USB_PAQUET && i < len; j++, i++) {
             char c = caracteres[i];
+            unsigned char keycode = 0;
+            bool need_shift = false;
+
             if (c >= 'a' && c <= 'z') {
-                if (is_maj_pressed) break;
-                paquet[j] = c - 'a' + 4; // Codes clavier pour a-z (exemple)
+                keycode = c - 'a' + 4;
             } else if (c >= 'A' && c <= 'Z') {
-                is_maj_pressed = true;
-                paquet[j] = c - 'A' + 4; // Codes clavier pour A-Z (exemple)
-                paquet[0] = 2;
-            } else if (c >= '0' && c <= '9') {
-                if (is_maj_pressed) break;
-                paquet[j] = c - '0' + 30; // Codes clavier pour 0-9 (exemple)
-            } else if (c == '.') {
-                if (is_maj_pressed) break;
-                paquet[j] = 55; // Code clavier pour . (exemple)
-            } else if (c == ',') {
-                if (is_maj_pressed) break;
-                paquet[j] = 54; // Code clavier pour , (exemple)
-            } else if (c == '\n') {
-                if (is_maj_pressed) break;
-                paquet[j] = 40; // Code clavier pour Entrée (exemple)
+                keycode = c - 'A' + 4;
+                need_shift = true;
+            } else if (c >= '1' && c <= '9') {
+                keycode = c - '1' + 30;
             } else {
-                if (is_maj_pressed) break;
-                paquet[j] = 0; // Code par défaut pour les autres caractères
+                switch (c) {
+                    case '.': keycode = 55; break;
+                    case ',': keycode = 54; break;
+                    case '\n': keycode = 40; break;
+                    case ' ': keycode = 44; break;
+                    case '0': keycode = 39; break;
+                    default: keycode = 0; break;
+                }
             }
-            i++;
+
+            // Gestion du verrouillage majuscule
+            if (need_shift) {
+                is_maj_pressed = true;
+                paquet[0] = 0x02; // Indicateur "Shift"
+            } else if (is_maj_pressed) {
+                // i--;
+                break;
+            }
+
+            paquet[j] = keycode;
         }
 
-        // Envoyer le paquet
-        if (fwrite(paquet, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
-            return -1; // Erreur lors de l'écriture
-        }
+        // // Envoyer le paquet
+        // if (fwrite(paquet, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
+        //     return -1; // Erreur lors de l'écriture
+        // }
 
-        // Envoyer le buffer de zéros pour relâcher les touches
-        if (fwrite(bufferZeros, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
-            return -1; // Erreur lors de l'écriture
-        }
+        // // Envoyer le buffer de zéros pour relâcher les touches
+        // if (fwrite(bufferZeros, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
+        //     return -1; // Erreur lors de l'écriture
+        // }
 
         memset(paquet, 0, sizeof(char));
 
