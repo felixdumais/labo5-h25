@@ -90,12 +90,13 @@ void resetStats(){
 
 void calculeStats(struct statistiques *stats){
     // TODO
+    double current_time = get_time() ;
     stats->nombreRequetesEnAttente = longueurFile();
     stats->nombreRequetesPerdues = nombreRequetesPerdues;
     stats->nombreRequetesTraitees = nombreRequetesTraitees;
-    // stats->tempsTraitementMoyen = nombreRequetesTraitees;
-    stats->lambda = nombreRequetesRecues / (get_time() - tempsDebutPeriode);
-    stats->mu = nombreRequetesTraitees / sommeTempsAttente ;
+    stats->tempsTraitementMoyen = (current_time - tempsDebutPeriode) / nombreRequetesTraitees;
+    stats->lambda = nombreRequetesRecues / (current_time - tempsDebutPeriode);
+    stats->mu = nombreRequetesTraitees / sommeTempsAttente;
     stats->rho = stats->lambda / stats->mu;
     
 }
