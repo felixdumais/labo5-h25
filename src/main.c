@@ -49,7 +49,8 @@ static void* threadFonctionClavier(void* args){
 
         ecrireCaracteres(infos->pointeurClavier, req.data, req.taille, infos->tempsTraitementParCaractereMicroSecondes);
         free(req.data);
-    }
+    } 
+
     return NULL;
 }
 
@@ -82,8 +83,10 @@ static void* threadFonctionLecture(void *args){
     //      la bonne valeur aux champs taille et tempsReception.
 
     struct requete req;
-    int chunk_size = 256;
-    char chunk_buffer[chunk_size];
+    int buffer_size = 2;
+    char* buffer = malloc(buffer_size);
+    ssize_t bytes_read;
+    int unprocessed_bytes = 0;
 
     while(1){
         // TODO
@@ -92,67 +95,51 @@ static void* threadFonctionLecture(void *args){
 
         // Attendre qu'il y ait quelque chose à lire
         if (select(nfds, &setFd, NULL, NULL, NULL) > 0) {
-            if (FD_ISSET(infos->pipeFd, &setFd)) {
-                // Lire le contenu du named pipe
-                int tailleContenu;
-
-                if (read(infos->pipeFd, &tailleContenu, sizeof(size_t)) != sizeof(size_t)) {
-                    perror("Erreur lors de la lecture de la taille du contenu depuis le pipe");
-                    close(infos->pipeFd);
-                    continue; 
-                }
-
-                int read_count = 0;
-                int unprocessed_bytes = 0;
-                while (read_count < tailleContenu)
+            if (FD_ISSET(infos->pipeFd, &setFd)) 
+            {
+                size_t read_amount = buffer_size - unprocessed_bytes;
+                char *read_ptr = buffer + unprocessed_bytes;
+                bytes_read = read(infos->pipeFd, read_ptr, read_amount);
+            
+                if (bytes_read > 0)
                 {
-                    size_t lectureTotale = 0;
-                    int lectureCourante;
-                    size_t read_amount = chunk_size - unprocessed_bytes;
-                    char *read_ptr = chunk_buffer + unprocessed_bytes;
-                    
-                    while (lectureTotale < read_amount) {
-                        lectureCourante = read(infos->pipeFd, read_ptr + lectureTotale, read_amount - lectureTotale);
-                        if (lectureCourante == -1) {
-                            perror("Erreur lors de la lecture du contenu depuis le pipe");
-                            lectureCourante = 0;
-                            break;
-                        }
-                        lectureTotale += lectureCourante;
-                    }
+                    int last_eot = -1;  // Start at -1 to correctly handle initial EOT
+                    int bytes_in_buffer = (int)(bytes_read + (ssize_t)unprocessed_bytes);
+                    unprocessed_bytes = 0;
 
-                    if (lectureTotale > 0)
+                    for (int i = 0; i < bytes_in_buffer; i++)
                     {
-                        int last_eot = -1;  // Start at -1 to correctly handle initial EOT
-                        for (int i = 0; i < (int)lectureTotale; i++)
-                        {
-                            unprocessed_bytes++;
+                        unprocessed_bytes++;
 
-                            if (chunk_buffer[i] == 0x4) { // ASCII EOT
-                                int start = last_eot + 1;
-                                int length = i - start;
+                        if (buffer[i] == 0x4) { // ASCII EOT
+                            int start = last_eot + 1;
+                            int length = i - start;
 
-                                if (length > 0) {
-                                    req.taille = length;
-                                    req.data = malloc(req.taille);
-                                    if (req.data != NULL) {
-                                        memcpy(req.data, chunk_buffer + start, req.taille);
-                                        req.tempsReception = get_time();
-                                        insererDonnee(&req);
-                                    }
+                            if (length > 0) {
+                                req.taille = length;
+                                req.data = malloc(req.taille);
+                                if (req.data != NULL) {
+                                    memcpy(req.data, buffer + start, req.taille);
+                                    req.tempsReception = get_time();
+                                    insererDonnee(&req);
                                 }
-
-                                last_eot = i;
-                                unprocessed_bytes = 0;
                             }
-                        }
 
-                        if ((last_eot + 1) != chunk_size)
-                        {
-                            memmove(chunk_buffer, chunk_buffer + last_eot + 1, unprocessed_bytes);
+                            last_eot = i;
+                            unprocessed_bytes = 0;
                         }
+                    }
+                    if (last_eot == -1)
+                    {
+                        buffer_size *= 2;
+                        buffer = realloc(buffer, buffer_size);
+                    }
+                    else if ((last_eot + 1) != buffer_size)
+                    {
+                        memmove(buffer, buffer + last_eot + 1, unprocessed_bytes);
                     }
                 }
+
 
             }
         }

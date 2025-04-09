@@ -95,7 +95,7 @@ void calculeStats(struct statistiques *stats){
     stats->nombreRequetesTraitees = nombreRequetesTraitees;
     // stats->tempsTraitementMoyen = nombreRequetesTraitees;
     stats->lambda = nombreRequetesRecues / (get_time() - tempsDebutPeriode);
-    stats->mu = sommeTempsAttente / nombreRequetesTraitees;
+    stats->mu = nombreRequetesTraitees / sommeTempsAttente ;
     stats->rho = stats->lambda / stats->mu;
     
 }

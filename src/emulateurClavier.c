@@ -31,28 +31,37 @@ int ecrireCaracteres(FILE* periphClavier, const char* caracteres, size_t len, un
 
     size_t caracteresEcrits = 0;
     size_t i = 0;
-    bool is_maj_pressed;
+    bool is_maj_packet;
+    bool is_lower_packet;
 
 
     while (i < len) {
         // Remplir le paquet avec les codes clavier
         memset(paquet, 0, LONGUEUR_USB_PAQUET);
-        is_maj_pressed = false;
+        is_maj_packet = false;
+        is_lower_packet = false;
 
         // Remplir le paquet avec les codes clavier
-        for (size_t j = 2; j < LONGUEUR_USB_PAQUET && i < len; j++, i++) {
+        for (size_t j = 2; j < LONGUEUR_USB_PAQUET && i < len; i++) {
             char c = caracteres[i];
             unsigned char keycode = 0;
-            bool need_shift = false;
 
             if (c >= 'a' && c <= 'z') {
                 keycode = c - 'a' + 4;
+                if (is_maj_packet) break; // stop if we're switching cases
+                is_lower_packet = true;
             } else if (c >= 'A' && c <= 'Z') {
                 keycode = c - 'A' + 4;
-                need_shift = true;
+                if (is_lower_packet) break; // stop if we're switching cases
+                is_maj_packet = true;
+                paquet[0] = 0x02; // Shift modifier
             } else if (c >= '1' && c <= '9') {
                 keycode = c - '1' + 30;
+                if (is_maj_packet) break; // stop if we're switching cases
+                is_lower_packet = true;
             } else {
+                if (is_maj_packet) break; // stop if we're switching cases
+                is_lower_packet = true;
                 switch (c) {
                     case '.': keycode = 55; break;
                     case ',': keycode = 54; break;
@@ -63,27 +72,34 @@ int ecrireCaracteres(FILE* periphClavier, const char* caracteres, size_t len, un
                 }
             }
 
-            // Gestion du verrouillage majuscule
-            if (need_shift) {
-                is_maj_pressed = true;
-                paquet[0] = 0x02; // Indicateur "Shift"
-            } else if (is_maj_pressed) {
-                // i--;
-                break;
+            if (keycode != 0 && j > 2)
+            {
+                bool is_keycode_in_paquet = false;
+                for (size_t k = 2; k < j; k++)
+                {
+                    if (paquet[k] == keycode)
+                    {
+                        is_keycode_in_paquet = true;
+                        break;
+                    }
+
+                }
+                if (is_keycode_in_paquet)
+                    break;
             }
 
-            paquet[j] = keycode;
+            paquet[j++] = keycode;
         }
 
-        // // Envoyer le paquet
-        // if (fwrite(paquet, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
-        //     return -1; // Erreur lors de l'écriture
-        // }
+        // Envoyer le paquet
+        if (fwrite(paquet, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
+            return -1; // Erreur lors de l'écriture
+        }
 
-        // // Envoyer le buffer de zéros pour relâcher les touches
-        // if (fwrite(bufferZeros, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
-        //     return -1; // Erreur lors de l'écriture
-        // }
+        // Envoyer le buffer de zéros pour relâcher les touches
+        if (fwrite(bufferZeros, LONGUEUR_USB_PAQUET, 1, periphClavier) != 1) {
+            return -1; // Erreur lors de l'écriture
+        }
 
         memset(paquet, 0, sizeof(char));
 
